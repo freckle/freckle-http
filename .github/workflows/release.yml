@@ -9,7 +9,7 @@ jobs:
     if: false # Remove when ready to release
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - id: tag
         uses: freckle/haskell-tag-action@v1
