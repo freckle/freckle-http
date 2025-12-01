@@ -388,11 +388,12 @@ settingsFuture =
 stubAnything :: [HttpStub]
 stubAnything = [httpStub "Anything" MatchAnything]
 
-expectDecode :: (HasCallStack, MonadIO m, FromJSON a) => BSL.ByteString -> m a
+expectDecode
+  :: forall m a. (FromJSON a, HasCallStack, MonadIO m) => BSL.ByteString -> m a
 expectDecode bs = case eitherDecode bs of
   Left err -> do
-    expectationFailure $
-      mconcat
+    expectationFailure
+      $ mconcat
         [ "Expected input to decode as JSON"
         , "\nInput:  " <> show bs
         , "\nErrors: " <> err

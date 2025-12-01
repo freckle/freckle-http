@@ -73,8 +73,8 @@ matchRequestFromUrl url =
   requiredMatches = MatchMethod method :| [MatchSecure secure, MatchPort port]
 
   optionalMatches =
-    NE.nonEmpty $
-      catMaybes
+    NE.nonEmpty
+      $ catMaybes
         [ MatchHost host <$ guard (host /= "")
         , MatchPath path <$ guard (hasExplicitPath secure host port url)
         , MatchQuery query <$ guard (query /= "")
@@ -106,8 +106,8 @@ hasExplicitPath secure host port url =
 -- Success is @'Right' ()@, failure is a message in 'Left'.
 matchRequest :: Request -> MatchRequest -> Either String ()
 matchRequest req mr =
-  maybe (Right ()) (Left . showMatchRequestWithMismatches mr) $
-    buildMismatch req mr
+  maybe (Right ()) (Left . showMatchRequestWithMismatches mr)
+    $ buildMismatch req mr
 
 showMatchRequest :: MatchRequest -> String
 showMatchRequest mr =

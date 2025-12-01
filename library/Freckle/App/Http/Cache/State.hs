@@ -34,7 +34,7 @@ import System.IO qualified as IO
 newtype Cache = Cache
   { map :: HashMap CacheKey CachedResponse
   }
-  deriving newtype (Semigroup, Monoid)
+  deriving newtype (Monoid, Semigroup)
 
 mapL :: Lens' Cache (HashMap CacheKey CachedResponse)
 mapL = lens (.map) $ \x y -> x {map = y}
@@ -46,9 +46,10 @@ instance HasCache Cache where
   cacheL = id
 
 stateHttpCacheSettings
-  :: ( MonadIO m
+  :: forall m s
+   . ( HasCache s
+     , MonadIO m
      , MonadState s m
-     , HasCache s
      )
   => HttpCacheSettings m CachedResponse
 stateHttpCacheSettings =
@@ -71,7 +72,8 @@ stateHttpCacheCodec =
     }
 
 stateHttpCache
-  :: (MonadIO m, MonadState s m, HasCache s) => HttpCache m CachedResponse
+  :: forall m s
+   . (HasCache s, MonadIO m, MonadState s m) => HttpCache m CachedResponse
 stateHttpCache =
   HttpCache
     { get = \key -> fmap Right $ use $ cacheL . mapL . at key

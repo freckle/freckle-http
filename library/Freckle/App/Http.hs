@@ -153,7 +153,7 @@ instance MonadHttp m => MonadHttp (MaybeT m) where
 instance MonadHttp m => MonadHttp (ReaderT r m) where
   httpLbs = lift . httpLbs
 
-instance (Monoid w, MonadHttp m) => MonadHttp (WriterT w m) where
+instance (MonadHttp m, Monoid w) => MonadHttp (WriterT w m) where
   httpLbs = lift . httpLbs
 
 instance MonadHttp m => MonadHttp (StateT s m) where
@@ -173,10 +173,10 @@ data HttpDecodeError = HttpDecodeError
 
 instance Exception HttpDecodeError where
   displayException HttpDecodeError {..} =
-    T.unpack $
-      T.unlines $
-        ["Error decoding HTTP Response:", "Raw body:", T.pack $ BSL8.unpack hdeBody]
-          <> fromErrors hdeErrors
+    T.unpack
+      $ T.unlines
+      $ ["Error decoding HTTP Response:", "Raw body:", T.pack $ BSL8.unpack hdeBody]
+        <> fromErrors hdeErrors
    where
     fromErrors = \case
       err NE.:| [] -> ["Error:", T.pack err]
@@ -196,7 +196,8 @@ instance Exception HttpDecodeError where
 -- 'getResponseBodyUnsafe' resp :: m a
 -- @
 httpJson
-  :: (MonadHttp m, FromJSON a)
+  :: forall m a
+   . (FromJSON a, MonadHttp m)
   => Request
   -> m (Response (Either HttpDecodeError a))
 httpJson =
@@ -282,7 +283,8 @@ disableRequestDecompress req =
 -- error response bodies too, you'll want to use 'setRequestCheckStatus' so that
 -- you see status-code exceptions before 'HttpDecodeError's.
 getResponseBodyUnsafe
-  :: (MonadIO m, Exception e, HasCallStack)
+  :: forall m e a
+   . (Exception e, HasCallStack, MonadIO m)
   => Response (Either e a)
   -> m a
 getResponseBodyUnsafe = either throwWithCallStack pure . getResponseBody

@@ -126,8 +126,8 @@ httpCached settings doHttp req =
             settings.logWarn $ "Error deserialising" :# ["error" .= err]
             writeCache now key =<< getResponse req
           Right cresp | isCachedResponseStale cresp now -> do
-            settings.logDebug $
-              "Cached value stale"
+            settings.logDebug
+              $ "Cached value stale"
                 :# [ "key" .= tkey
                    , "inserted" .= cresp.inserted
                    , "ttl" .= fromCacheTTL cresp.ttl
@@ -138,8 +138,8 @@ httpCached settings doHttp req =
                 fromEx () $ settings.cache.evict key
                 writeCache now key =<< getResponse req
               Just etag -> do
-                settings.logDebug $
-                  "Retrying with If-None-Match"
+                settings.logDebug
+                  $ "Retrying with If-None-Match"
                     :# [ "key" .= tkey
                        , "etag" .= T.decodeUtf8With T.lenientDecode etag
                        ]
@@ -170,8 +170,8 @@ httpCached settings doHttp req =
     -> m (Response BSL.ByteString)
   writeCache now key resp = do
     for_ (getCachableResponseTTL settings resp) $ \ttl -> do
-      settings.logDebug $
-        "Write cache"
+      settings.logDebug
+        $ "Write cache"
           :# [ "key" .= T.decodeUtf8With T.lenientDecode (fromCacheKey key)
              , "ttl" .= fromCacheTTL ttl
              ]
@@ -235,8 +235,8 @@ getCachableResponseTTL
   :: HttpCacheSettings m t -> Response body -> Maybe CacheTTL
 getCachableResponseTTL settings resp = do
   guard $ NoStore `notElem` responseHeaders.cacheControl
-  guard $
-    not settings.shared || Private `notElem` responseHeaders.cacheControl
+  guard
+    $ not settings.shared || Private `notElem` responseHeaders.cacheControl
   guard $ statusIsCacheable $ HTTP.responseStatus resp
   pure $ fromMaybe settings.defaultTTL $ responseHeadersToTTL responseHeaders
  where
@@ -265,7 +265,7 @@ cacheableStatusCodes =
 
 newtype Seconds = Seconds {unwrap :: Int}
   deriving stock (Eq)
-  deriving newtype (Num, Show, Read)
+  deriving newtype (Num, Read, Show)
 
 data CacheControl
   = Private

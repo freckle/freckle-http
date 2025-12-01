@@ -31,7 +31,7 @@ import Network.HTTP.Client.Internal qualified as HTTP
 newtype PotentiallyGzipped a = PotentiallyGzipped
   { unwrap :: a
   }
-  deriving stock (Show, Eq)
+  deriving stock (Eq, Show)
   deriving newtype (Serialise)
 
 -- | Run a request /without/ automatic 'decompress' and tag the @body@ type

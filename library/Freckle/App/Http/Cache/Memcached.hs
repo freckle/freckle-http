@@ -33,11 +33,12 @@ import OpenTelemetry.Trace.Monad (MonadTracer (..))
 import UnliftIO (MonadUnliftIO)
 
 memcachedHttpCacheSettings
-  :: ( MonadUnliftIO m
+  :: forall m env
+   . ( HasMemcachedClient env
      , MonadLogger m
-     , MonadTracer m
      , MonadReader env m
-     , HasMemcachedClient env
+     , MonadTracer m
+     , MonadUnliftIO m
      )
   => CacheTTL
   -- ^ Default TTL, used when @max-age@ is not present
@@ -65,10 +66,11 @@ memcachedHttpCodec =
     }
 
 memcachedHttpCache
-  :: ( MonadUnliftIO m
-     , MonadTracer m
+  :: forall m env
+   . ( HasMemcachedClient env
      , MonadReader env m
-     , HasMemcachedClient env
+     , MonadTracer m
+     , MonadUnliftIO m
      )
   => HttpCache m Value
 memcachedHttpCache =

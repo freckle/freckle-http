@@ -77,18 +77,18 @@ suppressRetryStatusError :: Request -> Request
 suppressRetryStatusError req =
   req
     { checkResponse = \req' resp ->
-        unless (getResponseStatus resp == status429) $
-          originalCheckResponse req' resp
+        unless (getResponseStatus resp == status429)
+          $ originalCheckResponse req' resp
     }
  where
   originalCheckResponse = checkResponse req
 
 checkRetriesExhausted
-  :: (MonadIO m, HasCallStack) => Int -> Response body -> m (Response body)
+  :: (HasCallStack, MonadIO m) => Int -> Response body -> m (Response body)
 checkRetriesExhausted retryLimit resp
   | getResponseStatus resp == status429 =
-      throwWithCallStack $
-        RetriesExhausted {reLimit = retryLimit, reResponse = void resp}
+      throwWithCallStack
+        $ RetriesExhausted {reLimit = retryLimit, reResponse = void resp}
   | otherwise = pure resp
 
 getRetryAfter :: Response body -> Maybe Int
