@@ -1,15 +1,10 @@
-name: haskell-library-template
-version: 0.0.0.0
+name: freckle-http
+version: 0.3.0.1
 maintainer: Freckle Education
-category: Utils
-github: freckle/haskell-library-template
-synopsis: Short synopsis here
-description: |
-  Longer description here
-
-  Haddocks are more valuable if you reproduce the main README example here, but
-  you can also just direct users to the README if you prefer not to take on that
-  duplication burden.
+category: HTTP
+github: freckle/freckle-http
+synopsis: Toolkit for making HTTP requests
+description: Please see README.md
 
 extra-doc-files:
   - README.md
@@ -18,14 +13,20 @@ extra-doc-files:
 extra-source-files:
   - package.yaml
 
+language: GHC2021
+
 ghc-options:
+  - -fignore-optim-changes
+  - -fwrite-ide-info
   - -Weverything
   - -Wno-all-missed-specialisations
-  - -Wno-missed-specialisations
   - -Wno-missing-exported-signatures # re-enables missing-signatures
   - -Wno-missing-import-lists
+  - -Wno-missing-kind-signatures
   - -Wno-missing-local-signatures
+  - -Wno-missing-safe-haskell-mode
   - -Wno-monomorphism-restriction
+  - -Wno-prepositive-qualified-module
   - -Wno-safe
   - -Wno-unsafe
 
@@ -34,61 +35,78 @@ when:
     ghc-options:
       - -Wno-missing-role-annotations
       - -Wno-missing-poly-kind-signatures
-  - condition: "impl(ghc >= 9.2)"
-    ghc-options:
-      - -Wno-missing-kind-signatures
-  - condition: "impl(ghc >= 8.10)"
-    ghc-options:
-      - -Wno-missing-safe-haskell-mode
-      - -Wno-prepositive-qualified-module
-  - condition: "impl(ghc >= 8.8)"
-    ghc-options:
-      - -fwrite-ide-info
 
 dependencies:
   - base < 5
 
 default-extensions:
-  - BangPatterns
   - DataKinds
   - DeriveAnyClass
-  - DeriveFoldable
-  - DeriveFunctor
-  - DeriveGeneric
-  - DeriveLift
-  - DeriveTraversable
+  - DerivingVia
   - DerivingStrategies
-  - FlexibleContexts
-  - FlexibleInstances
+  - DuplicateRecordFields
   - GADTs
-  - GeneralizedNewtypeDeriving
   - LambdaCase
-  - MultiParamTypeClasses
   - NoImplicitPrelude
   - NoMonomorphismRestriction
+  - OverloadedRecordDot
   - OverloadedStrings
-  - RankNTypes
   - RecordWildCards
-  - ScopedTypeVariables
-  - StandaloneDeriving
-  - TypeApplications
   - TypeFamilies
 
 library:
-  source-dirs: src
+  source-dirs: library
+  dependencies:
+    - Glob
+    - Blammo
+    - aeson
+    - annotated-exception
+    - bytestring
+    - case-insensitive
+    - conduit
+    - directory
+    - errors
+    - extra
+    - filepath
+    - freckle-memcached
+    - hs-opentelemetry-api
+    - http-client
+    - http-conduit >= 2.3.5 # addToRequestQueryString
+    - http-link-header
+    - http-types
+    - lens
+    - memcache
+    - monad-logger
+    - monad-validate
+    - mtl
+    - network-uri
+    - retry >= 0.8.1.0 # retryingDynamic
+    - safe
+    - serialise
+    - semigroupoids
+    - text
+    - time
+    - transformers
+    - unliftio
+    - unordered-containers
 
 tests:
   spec:
-    main: Spec.hs
-    source-dirs: test
+    main: Main.hs
+    source-dirs: tests
     ghc-options: -threaded -rtsopts "-with-rtsopts=-N"
     dependencies:
-      #- haskell-library-template
-      - hspec
-      - hspec-junit-formatter
-
-  readme:
-    main: README.lhs
-    ghc-options: -pgmL markdown-unlit
-    build-tools:
-      - markdown-unlit
+      - aeson
+      - bytestring
+      - freckle-http
+      - freckle-prelude
+      - hspec >= 2.8.1
+      - hspec-expectations-json
+      - hspec-expectations-lifted
+      - http-types
+      - lens
+      - lens-aeson
+      - mtl
+      - time
+      - unordered-containers
+      - zlib

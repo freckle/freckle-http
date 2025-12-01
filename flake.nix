@@ -1,6 +1,6 @@
 {
   inputs = {
-    stable.url = "github:nixos/nixpkgs/nixos-24.11";
+    nixpkgs-stable.url = "github:nixos/nixpkgs/nixos-25.11";
     freckle.url = "github:freckle/flakes?dir=main";
     flake-utils.url = "github:numtide/flake-utils";
   };
@@ -9,41 +9,31 @@
     inputs.flake-utils.lib.eachDefaultSystem (
       system:
       let
-        nixpkgsArgs = {
-          inherit system;
-          config = { };
-        };
-
-        nixpkgs = {
-          stable = import inputs.stable nixpkgsArgs;
-        };
+        nixpkgs-stable = inputs.nixpkgs-stable.legacyPackages.${system};
         freckle = inputs.freckle.packages.${system};
         freckleLib = inputs.freckle.lib.${system};
-
       in
-      rec {
-        packages = {
-          fourmolu = freckle.fourmolu-0-17-x;
-
-          ghc = freckleLib.haskellBundle {
-            ghcVersion = "ghc-9-8-4";
-            enableHLS = true;
-          };
+      {
+        devShells.default = nixpkgs-stable.mkShell {
+          buildInputs = [ nixpkgs-stable.zlib ];
+          nativeBuildInputs = [
+            freckle.fourmolu-0-17-x
+            (freckleLib.haskellBundle {
+              ghcVersion = "ghc-9-10-3";
+              enableHLS = true;
+            })
+          ];
+          shellHook = ''export STACK_YAML=stack.yaml'';
         };
 
-        devShells.default = nixpkgs.stable.mkShell {
-          buildInputs = with (nixpkgs.stable); [
-            zlib
+        devShells.nightly = nixpkgs-stable.mkShell {
+          buildInputs = [ nixpkgs-stable.zlib ];
+          nativeBuildInputs = [
+            freckle.fourmolu-0-17-x
+            nixpkgs-stable.haskell.compiler.ghc9122
+            nixpkgs-stable.stack
           ];
-
-          nativeBuildInputs = with (packages); [
-            fourmolu
-            ghc
-          ];
-
-          shellHook = ''
-            export STACK_YAML=stack.yaml
-          '';
+          shellHook = ''export STACK_YAML=stack-nightly.yaml'';
         };
       }
     );
