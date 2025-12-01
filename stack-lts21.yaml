@@ -1,6 +1,8 @@
 resolver: lts-21.25
 
 extra-deps:
+  - Blammo-2.1.0.0
+  - fast-logger-3.2.3
   - freckle-exception-0.0.0.1
   - freckle-memcached-0.0.0.2
   - freckle-otel-0.0.0.2
