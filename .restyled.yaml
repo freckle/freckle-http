@@ -1,4 +1,5 @@
 restylers:
-  - fourmolu
-  - "!stylish-haskell"
-  - "*"
+  - fourmolu:
+      image: restyled/restyler-fourmolu:v0.13.0.0
+      include:
+        - "/**/*.hs"
