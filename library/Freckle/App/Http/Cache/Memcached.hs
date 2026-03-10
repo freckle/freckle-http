@@ -47,6 +47,7 @@ memcachedHttpCacheSettings defaultTTL =
   HttpCacheSettings
     { shared = True
     , cacheable = const True
+    , forceTTL = Nothing
     , defaultTTL
     , getCurrentTime = liftIO getCurrentTime
     , logDebug = logDebugNS "http.cache"
