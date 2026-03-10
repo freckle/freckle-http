@@ -56,6 +56,7 @@ stateHttpCacheSettings =
   HttpCacheSettings
     { shared = False
     , cacheable = const True
+    , forceTTL = Nothing
     , defaultTTL = fiveMinuteTTL
     , getCurrentTime = liftIO getCurrentTime
     , logDebug = \_ -> pure ()

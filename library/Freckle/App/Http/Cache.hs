@@ -53,6 +53,7 @@ import Text.Read (readMaybe)
 data HttpCacheSettings m t = HttpCacheSettings
   { shared :: Bool
   , cacheable :: Request -> Bool
+  , forceTTL :: Maybe CacheTTL
   , defaultTTL :: CacheTTL
   , getCurrentTime :: m UTCTime
   , logDebug :: Message -> m ()
@@ -238,7 +239,9 @@ getCachableResponseTTL settings resp = do
   guard
     $ not settings.shared || Private `notElem` responseHeaders.cacheControl
   guard $ statusIsCacheable $ HTTP.responseStatus resp
-  pure $ fromMaybe settings.defaultTTL $ responseHeadersToTTL responseHeaders
+  pure $ case settings.forceTTL of
+    Nothing -> fromMaybe settings.defaultTTL $ responseHeadersToTTL responseHeaders
+    Just ttl -> ttl
  where
   responseHeaders = getResponseHeaders resp
 
