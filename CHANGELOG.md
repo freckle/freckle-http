@@ -1,4 +1,8 @@
-## [_Unreleased_](https://github.com/freckle/freckle-http/compare/v0.3.0.1...main)
+## [_Unreleased_](https://github.com/freckle/freckle-http/compare/v0.3.1.0...main)
+
+## [v0.3.1.0](https://github.com/freckle/freckle-http/compare/v0.3.0.1...v0.3.1.0)
+
+- Add `HttpCacheSettings{forceTTL}`
 
 ## [v0.3.0.1](https://github.com/freckle/freckle-http/tree/v0.3.0.1)
 
