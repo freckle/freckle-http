@@ -98,7 +98,7 @@ spec = do
 
       cache.map `shouldSatisfy` ((== 0) . HashMap.size)
 
-    it "incorporates Vary headers into the cache key" $ do
+    it "incorporates cacheByHeaders into the cache key" $ do
       let
         stubs =
           [ "https://example.com/1"
@@ -118,31 +118,29 @@ spec = do
         reqEn1 =
           parseRequest_ "https://example.com/1"
             & addRequestHeader hAcceptLanguage "en"
-            & addRequestHeader hVary "Accept, Accept-Language"
         reqEn2 =
           parseRequest_ "https://example.com/2"
             & addRequestHeader hAcceptLanguage "en"
-            & addRequestHeader hVary "Accept, Accept-Language"
         reqEs1 =
           parseRequest_ "https://example.com/1"
             & addRequestHeader hAcceptLanguage "es"
-            & addRequestHeader hVary "Accept, Accept-Language"
         reqEs2 =
           parseRequest_ "https://example.com/2"
             & addRequestHeader hAcceptLanguage "es"
-            & addRequestHeader hVary "Accept, Accept-Language"
+
+        settings' = settings {cacheByHeaders = [hAcceptLanguage]}
 
       cache <- execCached $ do
-        requestBodyCached settings stubs reqEn1 `shouldReturn` "Hello\n"
-        requestBodyCached settings stubs reqEn2 `shouldReturn` "World\n"
-        requestBodyCached settings stubs reqEs1 `shouldReturn` "Hola\n"
-        requestBodyCached settings stubs reqEs2 `shouldReturn` "Mundo\n"
+        requestBodyCached settings' stubs reqEn1 `shouldReturn` "Hello\n"
+        requestBodyCached settings' stubs reqEn2 `shouldReturn` "World\n"
+        requestBodyCached settings' stubs reqEs1 `shouldReturn` "Hola\n"
+        requestBodyCached settings' stubs reqEs2 `shouldReturn` "Mundo\n"
 
         -- No stubs, so these would fail if not cached
-        requestBodyCached settings [] reqEn1 `shouldReturn` "Hello\n"
-        requestBodyCached settings [] reqEn2 `shouldReturn` "World\n"
-        requestBodyCached settings [] reqEs1 `shouldReturn` "Hola\n"
-        requestBodyCached settings [] reqEs2 `shouldReturn` "Mundo\n"
+        requestBodyCached settings' [] reqEn1 `shouldReturn` "Hello\n"
+        requestBodyCached settings' [] reqEn2 `shouldReturn` "World\n"
+        requestBodyCached settings' [] reqEs1 `shouldReturn` "Hola\n"
+        requestBodyCached settings' [] reqEs2 `shouldReturn` "Mundo\n"
 
       cache.map `shouldSatisfy` ((== 4) . HashMap.size)
 
@@ -162,21 +160,25 @@ spec = do
 
           req =
             parseRequest_ "https://example.com/1"
-              & addRequestHeader hVary "accept-encoding"
           reqGzipped =
             parseRequest_ "https://example.com/1"
-              & addRequestHeader hVary "accept-encoding"
               & addRequestHeader hAcceptEncoding "gzip"
           reqGzippedAsIs =
             parseRequest_ "https://example.com/1"
-              & addRequestHeader hVary "accept-encoding"
               & addRequestHeader hAcceptEncoding "gzip"
               & disableRequestDecompress
 
+          -- User's shouldn't really need to do this, but since we've set up
+          -- mocks that return meaningfully-different content within the
+          -- gzip-or-not cases, we need to ensure they're cached separately. In
+          -- reality, it wouldn't matter which is cached since we always
+          -- correctly docompress or not based on content-encoding.
+          settings' = settings {cacheByHeaders = [hAcceptEncoding]}
+
         cache <- execCached $ do
-          requestBodyCached settings stubs req `shouldReturn` "Hi (not zipped)\n"
-          requestBodyCached settings stubs reqGzipped `shouldReturn` "Hi (zipped)\n"
-          requestBodyCached settings stubs reqGzippedAsIs `shouldReturn` gzipped
+          requestBodyCached settings' stubs req `shouldReturn` "Hi (not zipped)\n"
+          requestBodyCached settings' stubs reqGzipped `shouldReturn` "Hi (zipped)\n"
+          requestBodyCached settings' stubs reqGzippedAsIs `shouldReturn` gzipped
 
         cache.map `shouldSatisfy` ((== 2) . HashMap.size)
 

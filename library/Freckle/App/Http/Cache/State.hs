@@ -56,6 +56,7 @@ stateHttpCacheSettings =
   HttpCacheSettings
     { shared = False
     , cacheable = const True
+    , cacheByHeaders = []
     , forceTTL = Nothing
     , defaultTTL = fiveMinuteTTL
     , getCurrentTime = liftIO getCurrentTime
