@@ -45,7 +45,6 @@ import Network.HTTP.Types.Header
   , hETag
   , hExpires
   , hIfNoneMatch
-  , hVary
   )
 import Network.HTTP.Types.Status (Status, statusCode)
 import Text.Read (readMaybe)
@@ -53,6 +52,7 @@ import Text.Read (readMaybe)
 data HttpCacheSettings m t = HttpCacheSettings
   { shared :: Bool
   , cacheable :: Request -> Bool
+  , cacheByHeaders :: [HeaderName]
   , forceTTL :: Maybe CacheTTL
   , defaultTTL :: CacheTTL
   , getCurrentTime :: m UTCTime
@@ -87,11 +87,10 @@ isCachedResponseStale cached now =
 -- Wrap a function from "Freckle.App.Http" with caching
 --
 -- Verify that the request is cacheable (e.g. a @GET@), then cache it at a
--- derived key (from URL and considering any @Vary@ headers). The response will
--- only be cached if @Cache-Control@ allows it. @Cache-Control@ is also used to
--- determine TTL (e.g. @max-age@)
+-- derived key (from URL and considering any 'cacheByHeaders' headers). The
+-- response will only be cached if @Cache-Control@ allows it. @Cache-Control@ is
+-- also used to determine TTL (e.g. @max-age@)
 --
--- - <https://developer.mozilla.org/en-US/docs/Web/HTTP/Caching#vary>
 -- - <https://developer.mozilla.org/en-US/docs/Web/HTTP/Caching#fresh_and_stale_based_on_age>
 --
 -- If a cached response is stale, but it has an @ETag@ header, we will make the
@@ -199,7 +198,7 @@ httpCached settings doHttp req =
 -- - A @Cache-Control@ header with @no-store@ is not present
 --
 -- If cacheable, the 'CacheKey' is built from: method, scheme, host, port, path,
--- query + any @Vary@ headers.
+-- query + any 'cacheByHeaders'.
 getCachableRequestKey
   :: HttpCacheSettings m t -> Request -> Maybe CacheKey
 getCachableRequestKey settings req = do
@@ -218,7 +217,7 @@ getCachableRequestKey settings req = do
     , HTTP.port req
     , HTTP.path req
     , HTTP.queryString req
-    , concatMap (`getRequestHeader` req) requestHeaders.vary
+    , concatMap (`getRequestHeader` req) settings.cacheByHeaders
     )
 
 -- | Return a 'CacheTTL' for a 'Response', if it's cacheable
@@ -302,17 +301,12 @@ setCacheControlFrom from to =
   fromCCHeader = filter ((== hCacheControl) . fst) $ getHeaders from
   toNonCCHeader = filter ((/= hCacheControl) . fst) $ getHeaders to
 
-data RequestHeaders = RequestHeaders
+newtype RequestHeaders = RequestHeaders
   { cacheControl :: [CacheControl]
-  , vary :: [HeaderName]
   }
 
 getRequestHeaders :: Request -> RequestHeaders
-getRequestHeaders req =
-  RequestHeaders
-    { cacheControl = getCacheControl req
-    , vary = map CI.mk $ concatMap splitHeader $ getRequestHeader hVary req
-    }
+getRequestHeaders req = RequestHeaders {cacheControl = getCacheControl req}
 
 data ResponseHeaders = ResponseHeaders
   { cacheControl :: [CacheControl]
