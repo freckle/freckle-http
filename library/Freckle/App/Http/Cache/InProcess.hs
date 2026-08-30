@@ -7,6 +7,9 @@ module Freckle.App.Http.Cache.InProcess
   , newInProcessHttpCache
   , inProcessHttpCache
   , inProcessHttpCacheSettings
+  , cacheGet
+  , cacheSet
+  , cacheDelete
   ) where
 
 import Prelude

@@ -1,86 +1,64 @@
-{-# LANGUAGE OverloadedRecordDot #-}
-{-# LANGUAGE NoFieldSelectors #-}
-
 module Freckle.App.Http.Cache.InProcessSpec
   ( spec
   ) where
 
 import Prelude
 
-import Data.ByteString (ByteString)
-import Data.Text (Text)
-import Freckle.App.Http.Cache (HttpCache (..))
 import Freckle.App.Http.Cache.InProcess
-  ( inProcessHttpCache
+  ( cacheDelete
+  , cacheGet
+  , cacheSet
   , newInProcessHttpCache
   )
-import Freckle.App.Memcached.CacheKey (CacheKey, cacheKeyThrow)
-import Freckle.App.Memcached.CacheTTL (cacheTTL)
 import Test.Hspec
 
 spec :: Spec
 spec = describe "InProcessHttpCache" $ do
   it "misses on an empty cache" $ do
-    c <- cacheOps 1024
-    k <- key "a"
-    Right mv <- c.get k
+    c <- newInProcessHttpCache 1024
+    mv <- cacheGet c "a"
     mv `shouldBe` Nothing
 
   it "returns a value after it is set" $ do
-    c <- cacheOps 1024
-    k <- key "a"
-    _ <- c.set k "hello" (cacheTTL 60)
-    Right mv <- c.get k
+    c <- newInProcessHttpCache 1024
+    cacheSet c "a" "hello"
+    mv <- cacheGet c "a"
     mv `shouldBe` Just "hello"
 
   it "no longer returns a value once evicted" $ do
-    c <- cacheOps 1024
-    k <- key "a"
-    _ <- c.set k "hello" (cacheTTL 60)
-    _ <- c.evict k
-    Right mv <- c.get k
+    c <- newInProcessHttpCache 1024
+    cacheSet c "a" "hello"
+    cacheDelete c "a"
+    mv <- cacheGet c "a"
     mv `shouldBe` Nothing
 
   it "evicts the least-recently-used entry once over budget" $ do
-    c <- cacheOps 10
-    ka <- key "a"
-    kb <- key "b"
-    kc <- key "c"
-    _ <- c.set ka "aaaaa" (cacheTTL 60) -- total: 5
-    _ <- c.set kb "bbbbb" (cacheTTL 60) -- total: 10
-    _ <- c.set kc "ccccc" (cacheTTL 60) -- total: 15, over budget; evicts "a"
-    Right va <- c.get ka
-    Right vb <- c.get kb
-    Right vc <- c.get kc
+    c <- newInProcessHttpCache 10
+    cacheSet c "a" "aaaaa" -- total: 5
+    cacheSet c "b" "bbbbb" -- total: 10
+    cacheSet c "c" "ccccc" -- total: 15, over budget; evicts "a"
+    va <- cacheGet c "a"
+    vb <- cacheGet c "b"
+    vc <- cacheGet c "c"
     va `shouldBe` Nothing
     vb `shouldBe` Just "bbbbb"
     vc `shouldBe` Just "ccccc"
 
   it "treats a 'get' as refreshing an entry's recency" $ do
-    c <- cacheOps 10
-    ka <- key "a"
-    kb <- key "b"
-    kc <- key "c"
-    _ <- c.set ka "aaaaa" (cacheTTL 60) -- total: 5
-    _ <- c.set kb "bbbbb" (cacheTTL 60) -- total: 10
-    _ <- c.get ka -- "a" is now more-recently-used than "b"
-    _ <- c.set kc "ccccc" (cacheTTL 60) -- total: 15, over budget; evicts "b"
-    Right va <- c.get ka
-    Right vb <- c.get kb
-    Right vc <- c.get kc
+    c <- newInProcessHttpCache 10
+    cacheSet c "a" "aaaaa" -- total: 5
+    cacheSet c "b" "bbbbb" -- total: 10
+    _ <- cacheGet c "a" -- "a" is now more-recently-used than "b"
+    cacheSet c "c" "ccccc" -- total: 15, over budget; evicts "b"
+    va <- cacheGet c "a"
+    vb <- cacheGet c "b"
+    vc <- cacheGet c "c"
     va `shouldBe` Just "aaaaa"
     vb `shouldBe` Nothing
     vc `shouldBe` Just "ccccc"
 
   it "does not cache a single response larger than the whole budget" $ do
-    c <- cacheOps 10
-    k <- key "a"
-    _ <- c.set k "this value is way over budget" (cacheTTL 60)
-    Right mv <- c.get k
+    c <- newInProcessHttpCache 10
+    cacheSet c "a" "this value is way over budget"
+    mv <- cacheGet c "a"
     mv `shouldBe` Nothing
- where
-  key :: Text -> IO CacheKey
-  key = cacheKeyThrow
-
-  cacheOps :: Int -> IO (HttpCache IO ByteString)
-  cacheOps maxBytes = inProcessHttpCache <$> newInProcessHttpCache maxBytes

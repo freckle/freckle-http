@@ -127,7 +127,6 @@ test-suite spec
     , base <5
     , bytestring
     , freckle-http
-    , freckle-memcached
     , freckle-prelude
     , hspec >=2.8.1
     , hspec-expectations-json
@@ -136,7 +135,6 @@ test-suite spec
     , lens
     , lens-aeson
     , mtl
-    , text
     , time
     , unordered-containers
     , zlib

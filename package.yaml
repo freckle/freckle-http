@@ -100,7 +100,6 @@ tests:
       - aeson
       - bytestring
       - freckle-http
-      - freckle-memcached
       - freckle-prelude
       - hspec >= 2.8.1
       - hspec-expectations-json
@@ -109,7 +108,6 @@ tests:
       - lens
       - lens-aeson
       - mtl
-      - text
       - time
       - unordered-containers
       - zlib
