@@ -1,5 +1,5 @@
 name: freckle-http
-version: 0.4.0.0
+version: 0.4.1.0
 maintainer: Freckle Education
 category: HTTP
 github: freckle/freckle-http
@@ -75,6 +75,7 @@ library:
     - http-link-header
     - http-types
     - lens
+    - lrucache
     - memcache
     - monad-logger
     - monad-validate
@@ -99,6 +100,7 @@ tests:
       - aeson
       - bytestring
       - freckle-http
+      - freckle-memcached
       - freckle-prelude
       - hspec >= 2.8.1
       - hspec-expectations-json
@@ -107,6 +109,7 @@ tests:
       - lens
       - lens-aeson
       - mtl
+      - text
       - time
       - unordered-containers
       - zlib

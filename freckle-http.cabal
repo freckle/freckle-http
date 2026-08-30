@@ -1,11 +1,11 @@
 cabal-version: 1.18
 
--- This file has been generated from package.yaml by hpack version 0.38.1.
+-- This file has been generated from package.yaml by hpack version 0.39.1.
 --
 -- see: https://github.com/sol/hpack
 
 name:           freckle-http
-version:        0.4.0.0
+version:        0.4.1.0
 synopsis:       Toolkit for making HTTP requests
 description:    Please see README.md
 category:       HTTP
@@ -30,6 +30,7 @@ library
       Freckle.App.Http
       Freckle.App.Http.Cache
       Freckle.App.Http.Cache.Gzip
+      Freckle.App.Http.Cache.InProcess
       Freckle.App.Http.Cache.Memcached
       Freckle.App.Http.Cache.State
       Freckle.App.Http.Header
@@ -76,6 +77,7 @@ library
     , http-link-header
     , http-types
     , lens
+    , lrucache
     , memcache
     , monad-logger
     , monad-validate
@@ -98,6 +100,7 @@ test-suite spec
   type: exitcode-stdio-1.0
   main-is: Main.hs
   other-modules:
+      Freckle.App.Http.Cache.InProcessSpec
       Freckle.App.Http.CacheSpec
       Freckle.App.HttpSpec
       Freckle.App.Test.Http.MatchRequestSpec
@@ -124,6 +127,7 @@ test-suite spec
     , base <5
     , bytestring
     , freckle-http
+    , freckle-memcached
     , freckle-prelude
     , hspec >=2.8.1
     , hspec-expectations-json
@@ -132,6 +136,7 @@ test-suite spec
     , lens
     , lens-aeson
     , mtl
+    , text
     , time
     , unordered-containers
     , zlib
