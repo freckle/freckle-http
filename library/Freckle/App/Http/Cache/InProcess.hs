@@ -10,6 +10,8 @@ module Freckle.App.Http.Cache.InProcess
   , inProcessHttpCache
   , inProcessHttpCacheSettings
   , cacheGet
+  , Reap (..)
+  , cacheGetReap
   , cacheSet
   , cacheDelete
   , cacheReap
@@ -96,11 +98,25 @@ inProcessHttpCache cache =
     , evict = try . liftIO . cacheDelete cache . fromCacheKey
     }
 
+-- | Whether a 'cacheGetReap' call should reap expired entries first
+data Reap = Reap | NoReap
+
 cacheGet :: InProcessHttpCache -> Key -> IO (Maybe Value)
-cacheGet InProcessHttpCache {ref} k = do
+cacheGet = cacheGetReap Reap
+
+-- | 'cacheGet', with the choice of whether it reaps expired entries first
+--
+-- Real callers always want 'Reap' (that's what 'cacheGet' fixes it to);
+-- 'NoReap' exists so tests can observe an expired entry's continued
+-- presence, and 'cacheReap's effect on it, without 'cacheGet's own reap
+-- masking either.
+cacheGetReap :: Reap -> InProcessHttpCache -> Key -> IO (Maybe Value)
+cacheGetReap reap InProcessHttpCache {ref} k = do
   now <- getCurrentTime
   atomicModifyIORef' ref $ \state0 ->
-    let state = reapExpired now state0
+    let state = case reap of
+          Reap -> reapExpired now state0
+          NoReap -> state0
     in  case HashPSQ.lookup k state.byRecency of
           Nothing -> (state, Nothing)
           Just (_tick, entry) ->

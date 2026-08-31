@@ -4,9 +4,12 @@ module Freckle.App.Http.Cache.InProcessSpec
 
 import Prelude
 
+import Control.Concurrent (threadDelay)
 import Freckle.App.Http.Cache.InProcess
-  ( cacheDelete
+  ( Reap (..)
+  , cacheDelete
   , cacheGet
+  , cacheGetReap
   , cacheReap
   , cacheSet
   , newInProcessHttpCache
@@ -39,19 +42,35 @@ spec = describe "InProcessHttpCache" $ do
     mv <- cacheGet c "a"
     mv `shouldBe` Nothing
 
-  it "reaps an expired entry when a different key is accessed, even under budget" $ do
+  it "never lets an entry that is already expired at insertion survive" $ do
+    c <- newInProcessHttpCache 1024 -- plenty of headroom; budget pressure plays no part here
+    cacheSet c "a" "aaaaa" 300 -- fresh
+    cacheSet c "b" "bbbbb" 300 -- fresh
+    cacheSet c "c" "ccccc" 0 -- already expired; reaped immediately as part of its own insertion
+    va <- cacheGet c "a"
+    vb <- cacheGet c "b"
+    vc <- cacheGet c "c"
+    va `shouldBe` Just "aaaaa"
+    vb `shouldBe` Just "bbbbb"
+    vc `shouldBe` Nothing
+
+  it "reaps an entry that has expired once a different key is accessed" $ do
     c <- newInProcessHttpCache 1024
-    cacheSet c "a" "hello" 0 -- expires immediately
+    cacheSet c "a" "hello" 1 -- expires in 1 second
+    threadDelay 1_100_000 -- let it actually elapse, with no other access to the cache meanwhile
     cacheSet c "b" "world" 300 -- unrelated key, plenty of room; reaps "a" in passing
-    mv <- cacheGet c "a"
+    mv <- cacheGetReap NoReap c "a" -- skip get's own reap, so only "b"'s set could have reaped it
     mv `shouldBe` Nothing
 
-  it "removes an expired entry when explicitly reaped" $ do
+  it "leaves an entry that has expired since it was set until something reaps it" $ do
     c <- newInProcessHttpCache 1024
-    cacheSet c "a" "hello" 0 -- expires immediately
+    cacheSet c "a" "hello" 1 -- expires in 1 second
+    threadDelay 1_100_000 -- let it actually elapse, with no other access to the cache meanwhile
+    stillThere <- cacheGetReap NoReap c "a" -- skip get's own reap, so its lingering presence shows
+    stillThere `shouldBe` Just "hello"
     cacheReap c
-    mv <- cacheGet c "a"
-    mv `shouldBe` Nothing
+    afterReap <- cacheGetReap NoReap c "a" -- skip get's own reap again, to isolate cacheReap's effect
+    afterReap `shouldBe` Nothing
 
   it "evicts the least-recently-used entry once over budget" $ do
     c <- newInProcessHttpCache 10
@@ -84,22 +103,10 @@ spec = describe "InProcessHttpCache" $ do
     mv <- cacheGet c "a"
     mv `shouldBe` Nothing
 
-  it "evicts an already-expired entry ahead of any fresh one, even the newest" $ do
+  it "reaps a stale entry, then still falls back to LRU for what's left" $ do
     c <- newInProcessHttpCache 10
-    cacheSet c "a" "aaaaa" 300 -- total: 5, fresh
-    cacheSet c "b" "bbbbb" 300 -- total: 10, fresh
-    cacheSet c "c" "ccccc" 0 -- total: 15, over budget; already expired on arrival, evicted despite being newest
-    va <- cacheGet c "a"
-    vb <- cacheGet c "b"
-    vc <- cacheGet c "c"
-    va `shouldBe` Just "aaaaa"
-    vb `shouldBe` Just "bbbbb"
-    vc `shouldBe` Nothing
-
-  it "falls back to least-recently-used once no expired entries remain" $ do
-    c <- newInProcessHttpCache 10
-    cacheSet c "a" "aaaaa" 0 -- total: 5; reaped as soon as "b" is set below
-    cacheSet c "b" "bbbbb" 300 -- total: 5 (after reaping "a"), fresh
+    cacheSet c "a" "aaaaa" 0 -- total: 5; already expired, so it never survives its own insertion
+    cacheSet c "b" "bbbbb" 300 -- total: 5 ("a" already gone), fresh
     cacheSet c "c" "ccccc" 300 -- total: 10, fresh; fits exactly
     cacheSet c "d" "ddddd" 300 -- total: 15, over budget; nothing expired, evicts "b" (LRU)
     va <- cacheGet c "a"
