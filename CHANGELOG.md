@@ -1,4 +1,8 @@
-## [_Unreleased_](https://github.com/freckle/freckle-http/compare/v0.4.0.0...main)
+## [_Unreleased_](https://github.com/freckle/freckle-http/compare/v0.4.1.0...main)
+
+## [v0.4.1.0](https://github.com/freckle/freckle-http/compare/v0.4.0.0...v0.4.1.0)
+
+- Add `Freckle.App.Http.Cache.InProcess`, an in-memory, size-bounded cache
 
 ## [v0.4.0.0](https://github.com/freckle/freckle-http/compare/v0.3.1.0...v0.4.0.0)
 

@@ -5,7 +5,7 @@ cabal-version: 1.18
 -- see: https://github.com/sol/hpack
 
 name:           freckle-http
-version:        0.4.0.0
+version:        0.4.1.0
 synopsis:       Toolkit for making HTTP requests
 description:    Please see README.md
 category:       HTTP
@@ -30,6 +30,7 @@ library
       Freckle.App.Http
       Freckle.App.Http.Cache
       Freckle.App.Http.Cache.Gzip
+      Freckle.App.Http.Cache.InProcess
       Freckle.App.Http.Cache.Memcached
       Freckle.App.Http.Cache.State
       Freckle.App.Http.Header
@@ -81,6 +82,7 @@ library
     , monad-validate
     , mtl
     , network-uri
+    , psqueues
     , retry >=0.8.1.0
     , safe
     , semigroupoids
@@ -98,6 +100,7 @@ test-suite spec
   type: exitcode-stdio-1.0
   main-is: Main.hs
   other-modules:
+      Freckle.App.Http.Cache.InProcessSpec
       Freckle.App.Http.CacheSpec
       Freckle.App.HttpSpec
       Freckle.App.Test.Http.MatchRequestSpec

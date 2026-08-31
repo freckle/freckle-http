@@ -1,5 +1,5 @@
 name: freckle-http
-version: 0.4.0.0
+version: 0.4.1.0
 maintainer: Freckle Education
 category: HTTP
 github: freckle/freckle-http
@@ -80,6 +80,7 @@ library:
     - monad-validate
     - mtl
     - network-uri
+    - psqueues
     - retry >= 0.8.1.0 # retryingDynamic
     - safe
     - serialise
