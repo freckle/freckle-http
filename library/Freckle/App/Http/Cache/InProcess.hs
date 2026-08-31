@@ -7,6 +7,7 @@
 module Freckle.App.Http.Cache.InProcess
   ( InProcessHttpCache
   , newInProcessHttpCache
+  , newInProcessHttpCacheWithClock
   , inProcessHttpCache
   , inProcessHttpCacheSettings
   , cacheGet
@@ -54,11 +55,21 @@ data CacheState = CacheState
 data InProcessHttpCache = InProcessHttpCache
   { ref :: IORef CacheState
   , maxBytes :: Int
+  , clock :: IO UTCTime
   }
 
 -- | Create an empty cache with the given byte budget
 newInProcessHttpCache :: MonadIO m => Int -> m InProcessHttpCache
-newInProcessHttpCache maxBytes = do
+newInProcessHttpCache = newInProcessHttpCacheWithClock getCurrentTime
+
+-- | 'newInProcessHttpCache', with the choice of what it uses as "now"
+--
+-- Real callers always want 'getCurrentTime' (that's what
+-- 'newInProcessHttpCache' fixes it to); tests can pass something else so
+-- they can simulate a TTL having elapsed without an actual delay.
+newInProcessHttpCacheWithClock
+  :: MonadIO m => IO UTCTime -> Int -> m InProcessHttpCache
+newInProcessHttpCacheWithClock clock maxBytes = do
   ref <-
     liftIO $
       newIORef
@@ -68,7 +79,7 @@ newInProcessHttpCache maxBytes = do
           , totalBytes = 0
           , nextTick = 0
           }
-  pure InProcessHttpCache {ref, maxBytes}
+  pure InProcessHttpCache {ref, maxBytes, clock}
 
 inProcessHttpCacheSettings
   :: (MonadLogger m, MonadUnliftIO m)
@@ -111,8 +122,8 @@ cacheGet = cacheGetReap Reap
 -- presence, and 'cacheReap's effect on it, without 'cacheGet's own reap
 -- masking either.
 cacheGetReap :: Reap -> InProcessHttpCache -> Key -> IO (Maybe Value)
-cacheGetReap reap InProcessHttpCache {ref} k = do
-  now <- getCurrentTime
+cacheGetReap reap InProcessHttpCache {ref, clock} k = do
+  now <- clock
   atomicModifyIORef' ref $ \state0 ->
     let state = case reap of
           Reap -> reapExpired now state0
@@ -128,8 +139,8 @@ cacheGetReap reap InProcessHttpCache {ref} k = do
             )
 
 cacheSet :: InProcessHttpCache -> Key -> Value -> CacheTTL -> IO ()
-cacheSet InProcessHttpCache {ref, maxBytes} k v ttl = do
-  now <- getCurrentTime
+cacheSet InProcessHttpCache {ref, maxBytes, clock} k v ttl = do
+  now <- clock
   let expiresAt = addUTCTime (fromIntegral ttl) now
   atomicModifyIORef' ref $ \state ->
     let
@@ -156,8 +167,8 @@ cacheDelete InProcessHttpCache {ref} k =
 -- all. Call it periodically from your own background thread if that matters
 -- for your deployment; this module does not run one itself.
 cacheReap :: InProcessHttpCache -> IO ()
-cacheReap InProcessHttpCache {ref} = do
-  now <- getCurrentTime
+cacheReap InProcessHttpCache {ref, clock} = do
+  now <- clock
   atomicModifyIORef' ref $ \state -> (reapExpired now state, ())
 
 -- | The shared implementation behind 'cacheGet', 'evictToFit', and 'cacheReap'

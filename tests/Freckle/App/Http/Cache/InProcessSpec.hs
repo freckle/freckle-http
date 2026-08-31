@@ -4,7 +4,9 @@ module Freckle.App.Http.Cache.InProcessSpec
 
 import Prelude
 
-import Control.Concurrent (threadDelay)
+import Data.IORef (newIORef, readIORef, writeIORef)
+import Data.Time (UTCTime, addUTCTime)
+import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
 import Freckle.App.Http.Cache.InProcess
   ( Reap (..)
   , cacheDelete
@@ -13,6 +15,7 @@ import Freckle.App.Http.Cache.InProcess
   , cacheReap
   , cacheSet
   , newInProcessHttpCache
+  , newInProcessHttpCacheWithClock
   )
 import Test.Hspec
 
@@ -55,17 +58,19 @@ spec = describe "InProcessHttpCache" $ do
     vc `shouldBe` Nothing
 
   it "reaps an entry that has expired once a different key is accessed" $ do
-    c <- newInProcessHttpCache 1024
-    cacheSet c "a" "hello" 1 -- expires in 1 second
-    threadDelay 1_100_000 -- let it actually elapse, with no other access to the cache meanwhile
+    clockRef <- newIORef epoch
+    c <- newInProcessHttpCacheWithClock (readIORef clockRef) 1024
+    cacheSet c "a" "hello" 1 -- expires 1 second after epoch
+    writeIORef clockRef (addUTCTime 2 epoch) -- simulate 2 seconds passing, no delay needed
     cacheSet c "b" "world" 300 -- unrelated key, plenty of room; reaps "a" in passing
     mv <- cacheGetReap NoReap c "a" -- skip get's own reap, so only "b"'s set could have reaped it
     mv `shouldBe` Nothing
 
   it "leaves an entry that has expired since it was set until something reaps it" $ do
-    c <- newInProcessHttpCache 1024
-    cacheSet c "a" "hello" 1 -- expires in 1 second
-    threadDelay 1_100_000 -- let it actually elapse, with no other access to the cache meanwhile
+    clockRef <- newIORef epoch
+    c <- newInProcessHttpCacheWithClock (readIORef clockRef) 1024
+    cacheSet c "a" "hello" 1 -- expires 1 second after epoch
+    writeIORef clockRef (addUTCTime 2 epoch) -- simulate 2 seconds passing, no delay needed
     stillThere <- cacheGetReap NoReap c "a" -- skip get's own reap, so its lingering presence shows
     stillThere `shouldBe` Just "hello"
     cacheReap c
@@ -117,3 +122,6 @@ spec = describe "InProcessHttpCache" $ do
     vb `shouldBe` Nothing
     vc `shouldBe` Just "ccccc"
     vd `shouldBe` Just "ddddd"
+
+epoch :: UTCTime
+epoch = posixSecondsToUTCTime 0
