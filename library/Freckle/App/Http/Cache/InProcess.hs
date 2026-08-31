@@ -12,6 +12,7 @@ module Freckle.App.Http.Cache.InProcess
   , cacheGet
   , cacheSet
   , cacheDelete
+  , cacheReap
   ) where
 
 import Prelude
@@ -133,6 +134,17 @@ cacheDelete InProcessHttpCache {ref} k =
   atomicModifyIORef' ref $ \state -> (removeKey k state, ())
 
 -- | Remove every entry whose TTL has already elapsed
+--
+-- 'cacheGet' and 'cacheSet' already do this on every call, so this is only
+-- useful for reclaiming memory during a stretch with no cache traffic at
+-- all. Call it periodically from your own background thread if that matters
+-- for your deployment; this module does not run one itself.
+cacheReap :: InProcessHttpCache -> IO ()
+cacheReap InProcessHttpCache {ref} = do
+  now <- getCurrentTime
+  atomicModifyIORef' ref $ \state -> (reapExpired now state, ())
+
+-- | The shared implementation behind 'cacheGet', 'evictToFit', and 'cacheReap'
 reapExpired :: UTCTime -> CacheState -> CacheState
 reapExpired now = go
  where

@@ -7,6 +7,7 @@ import Prelude
 import Freckle.App.Http.Cache.InProcess
   ( cacheDelete
   , cacheGet
+  , cacheReap
   , cacheSet
   , newInProcessHttpCache
   )
@@ -42,6 +43,13 @@ spec = describe "InProcessHttpCache" $ do
     c <- newInProcessHttpCache 1024
     cacheSet c "a" "hello" 0 -- expires immediately
     cacheSet c "b" "world" 300 -- unrelated key, plenty of room; reaps "a" in passing
+    mv <- cacheGet c "a"
+    mv `shouldBe` Nothing
+
+  it "removes an expired entry when explicitly reaped" $ do
+    c <- newInProcessHttpCache 1024
+    cacheSet c "a" "hello" 0 -- expires immediately
+    cacheReap c
     mv <- cacheGet c "a"
     mv `shouldBe` Nothing
 
