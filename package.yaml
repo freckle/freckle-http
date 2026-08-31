@@ -75,12 +75,12 @@ library:
     - http-link-header
     - http-types
     - lens
-    - lrucache
     - memcache
     - monad-logger
     - monad-validate
     - mtl
     - network-uri
+    - psqueues
     - retry >= 0.8.1.0 # retryingDynamic
     - safe
     - serialise

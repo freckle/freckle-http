@@ -2,7 +2,7 @@
 
 ## [v0.4.1.0](https://github.com/freckle/freckle-http/compare/v0.4.0.0...v0.4.1.0)
 
-- Add `Freckle.App.Http.Cache.InProcess`, a in-memory size-bounded LRU cache
+- Add `Freckle.App.Http.Cache.InProcess`, an in-memory, size-bounded cache
 
 ## [v0.4.0.0](https://github.com/freckle/freckle-http/compare/v0.3.1.0...v0.4.0.0)
 
