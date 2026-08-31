@@ -1,13 +1,16 @@
 -- | An in-process, size-bounded cache of upstream HTTP responses
 --
--- Every 'cacheGet' or 'cacheSet' first reaps any entries whose TTL has
--- already elapsed, so expired responses do not linger in memory longer than
--- necessary. If the total size is still over budget after reaping, the
--- least-recently-used entry is evicted to make room.
+-- 'cacheGet' checks only the entry being looked up: if its own TTL has
+-- already elapsed, it is evicted and treated as a miss. 'cacheSet' evicts
+-- only when the total size is over budget, preferring an already-expired
+-- entry over the least-recently-used one. Neither walks the whole cache on
+-- every call. Call 'cacheReap' yourself (e.g. from a periodic background
+-- thread) for more proactive reclamation than that.
 module Freckle.App.Http.Cache.InProcess
   ( InProcessHttpCache
+  , InProcessHttpCacheSettings (..)
+  , defaultSettings
   , newInProcessHttpCache
-  , newInProcessHttpCacheWithClock
   , inProcessHttpCache
   , inProcessHttpCacheSettings
   , cacheGet
@@ -58,18 +61,25 @@ data InProcessHttpCache = InProcessHttpCache
   , clock :: IO UTCTime
   }
 
--- | Create an empty cache with the given byte budget
-newInProcessHttpCache :: MonadIO m => Int -> m InProcessHttpCache
-newInProcessHttpCache = newInProcessHttpCacheWithClock getCurrentTime
+data InProcessHttpCacheSettings = InProcessHttpCacheSettings
+  { maxBytes :: Int
+  , clock :: IO UTCTime
+  -- ^ What to use as "now". Tests can override this to simulate a TTL
+  -- having elapsed without an actual delay.
+  }
 
--- | 'newInProcessHttpCache', with the choice of what it uses as "now"
---
--- Real callers always want 'getCurrentTime' (that's what
--- 'newInProcessHttpCache' fixes it to); tests can pass something else so
--- they can simulate a TTL having elapsed without an actual delay.
-newInProcessHttpCacheWithClock
-  :: MonadIO m => IO UTCTime -> Int -> m InProcessHttpCache
-newInProcessHttpCacheWithClock clock maxBytes = do
+-- | 20MB, using the real clock
+defaultSettings :: InProcessHttpCacheSettings
+defaultSettings =
+  InProcessHttpCacheSettings
+    { maxBytes = 20 * 1024 * 1024
+    , clock = getCurrentTime
+    }
+
+-- | Create an empty cache
+newInProcessHttpCache
+  :: MonadIO m => InProcessHttpCacheSettings -> m InProcessHttpCache
+newInProcessHttpCache InProcessHttpCacheSettings {maxBytes, clock} = do
   ref <-
     liftIO $
       newIORef
@@ -109,34 +119,36 @@ inProcessHttpCache cache =
     , evict = try . liftIO . cacheDelete cache . fromCacheKey
     }
 
--- | Whether a 'cacheGetReap' call should reap expired entries first
+-- | Whether a 'cacheGetReap' call should evict an expired looked-up entry
 data Reap = Reap | NoReap
 
 cacheGet :: InProcessHttpCache -> Key -> IO (Maybe Value)
 cacheGet = cacheGetReap Reap
 
--- | 'cacheGet', with the choice of whether it reaps expired entries first
+-- | 'cacheGet', with the choice of whether it checks the looked-up entry's TTL
 --
 -- Real callers always want 'Reap' (that's what 'cacheGet' fixes it to);
 -- 'NoReap' exists so tests can observe an expired entry's continued
--- presence, and 'cacheReap's effect on it, without 'cacheGet's own reap
+-- presence, and 'cacheReap's effect on it, without 'cacheGet's own check
 -- masking either.
 cacheGetReap :: Reap -> InProcessHttpCache -> Key -> IO (Maybe Value)
 cacheGetReap reap InProcessHttpCache {ref, clock} k = do
   now <- clock
-  atomicModifyIORef' ref $ \state0 ->
-    let state = case reap of
-          Reap -> reapExpired now state0
-          NoReap -> state0
-    in  case HashPSQ.lookup k state.byRecency of
-          Nothing -> (state, Nothing)
-          Just (_tick, entry) ->
-            ( state
-                { byRecency = HashPSQ.insert k state.nextTick entry state.byRecency
-                , nextTick = state.nextTick + 1
-                }
-            , Just entry.value
-            )
+  atomicModifyIORef' ref $ \state -> case HashPSQ.lookup k state.byRecency of
+    Nothing -> (state, Nothing)
+    Just (_tick, entry)
+      | expired -> (removeKey k state, Nothing)
+      | otherwise ->
+          ( state
+              { byRecency = HashPSQ.insert k state.nextTick entry state.byRecency
+              , nextTick = state.nextTick + 1
+              }
+          , Just entry.value
+          )
+     where
+      expired = case reap of
+        Reap -> entry.expiresAt <= now
+        NoReap -> False
 
 cacheSet :: InProcessHttpCache -> Key -> Value -> CacheTTL -> IO ()
 cacheSet InProcessHttpCache {ref, maxBytes, clock} k v ttl = do
@@ -162,16 +174,17 @@ cacheDelete InProcessHttpCache {ref} k =
 
 -- | Remove every entry whose TTL has already elapsed
 --
--- 'cacheGet' and 'cacheSet' already do this on every call, so this is only
--- useful for reclaiming memory during a stretch with no cache traffic at
--- all. Call it periodically from your own background thread if that matters
--- for your deployment; this module does not run one itself.
+-- Unlike 'cacheGet' and 'cacheSet', which only ever look at what that one
+-- call needs to, this walks the whole cache. Call it yourself, e.g.
+-- periodically from your own background thread, for more proactive
+-- reclamation than ordinary traffic gives you; this module does not run one
+-- itself.
 cacheReap :: InProcessHttpCache -> IO ()
 cacheReap InProcessHttpCache {ref, clock} = do
   now <- clock
   atomicModifyIORef' ref $ \state -> (reapExpired now state, ())
 
--- | The shared implementation behind 'cacheGet', 'evictToFit', and 'cacheReap'
+-- | 'cacheReap's implementation: remove every entry whose TTL has elapsed
 reapExpired :: UTCTime -> CacheState -> CacheState
 reapExpired now = go
  where
@@ -179,15 +192,21 @@ reapExpired now = go
     Just (k, expiresAt, ()) | expiresAt <= now -> go (removeKey k state)
     _ -> state
 
--- | Reap expired entries, then evict least-recently-used ones until under budget
+-- | Evict entries until under budget, preferring an already-expired one
 evictToFit :: Int -> UTCTime -> CacheState -> CacheState
-evictToFit maxBytes now = go . reapExpired now
+evictToFit maxBytes now = go
  where
   go state
     | state.totalBytes <= maxBytes = state
-    | otherwise = case popLru state of
+    | otherwise = case popExpired state of
         Just state' -> go state'
-        Nothing -> state
+        Nothing -> case popLru state of
+          Just state' -> go state'
+          Nothing -> state
+
+  popExpired state = case HashPSQ.findMin state.byExpiry of
+    Just (k, expiresAt, ()) | expiresAt <= now -> Just $ removeKey k state
+    _ -> Nothing
 
   popLru state = case HashPSQ.findMin state.byRecency of
     Just (k, _tick, _entry) -> Just $ removeKey k state
