@@ -1,8 +1,9 @@
 -- | An in-process, size-bounded cache of upstream HTTP responses
 --
--- Once the total cached size exceeds the configured budget, entries are
--- evicted to make room: an already-expired entry is evicted ahead of any
--- fresh one, and otherwise the least-recently-used entry is evicted.
+-- Every 'cacheGet' or 'cacheSet' first reaps any entries whose TTL has
+-- already elapsed, so expired responses do not linger in memory longer than
+-- necessary. If the total size is still over budget after reaping, the
+-- least-recently-used entry is evicted to make room.
 module Freckle.App.Http.Cache.InProcess
   ( InProcessHttpCache
   , newInProcessHttpCache
@@ -95,16 +96,19 @@ inProcessHttpCache cache =
     }
 
 cacheGet :: InProcessHttpCache -> Key -> IO (Maybe Value)
-cacheGet InProcessHttpCache {ref} k =
-  atomicModifyIORef' ref $ \state -> case HashPSQ.lookup k state.byRecency of
-    Nothing -> (state, Nothing)
-    Just (_tick, entry) ->
-      ( state
-          { byRecency = HashPSQ.insert k state.nextTick entry state.byRecency
-          , nextTick = state.nextTick + 1
-          }
-      , Just entry.value
-      )
+cacheGet InProcessHttpCache {ref} k = do
+  now <- getCurrentTime
+  atomicModifyIORef' ref $ \state0 ->
+    let state = reapExpired now state0
+    in  case HashPSQ.lookup k state.byRecency of
+          Nothing -> (state, Nothing)
+          Just (_tick, entry) ->
+            ( state
+                { byRecency = HashPSQ.insert k state.nextTick entry state.byRecency
+                , nextTick = state.nextTick + 1
+                }
+            , Just entry.value
+            )
 
 cacheSet :: InProcessHttpCache -> Key -> Value -> CacheTTL -> IO ()
 cacheSet InProcessHttpCache {ref, maxBytes} k v ttl = do
@@ -128,22 +132,23 @@ cacheDelete :: InProcessHttpCache -> Key -> IO ()
 cacheDelete InProcessHttpCache {ref} k =
   atomicModifyIORef' ref $ \state -> (removeKey k state, ())
 
--- | Evict entries until under budget, preferring already-expired ones
+-- | Remove every entry whose TTL has already elapsed
+reapExpired :: UTCTime -> CacheState -> CacheState
+reapExpired now = go
+ where
+  go state = case HashPSQ.findMin state.byExpiry of
+    Just (k, expiresAt, ()) | expiresAt <= now -> go (removeKey k state)
+    _ -> state
+
+-- | Reap expired entries, then evict least-recently-used ones until under budget
 evictToFit :: Int -> UTCTime -> CacheState -> CacheState
-evictToFit maxBytes now = go
+evictToFit maxBytes now = go . reapExpired now
  where
   go state
-    | state.totalBytes <= maxBytes =
-        state
-    | otherwise = case popExpired state of
+    | state.totalBytes <= maxBytes = state
+    | otherwise = case popLru state of
         Just state' -> go state'
-        Nothing -> case popLru state of
-          Just state' -> go state'
-          Nothing -> state
-
-  popExpired state = case HashPSQ.findMin state.byExpiry of
-    Just (k, expiresAt, ()) | expiresAt <= now -> Just $ removeKey k state
-    _ -> Nothing
+        Nothing -> state
 
   popLru state = case HashPSQ.findMin state.byRecency of
     Just (k, _tick, _entry) -> Just $ removeKey k state
