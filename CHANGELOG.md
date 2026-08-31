@@ -2,9 +2,7 @@
 
 ## [v0.4.1.0](https://github.com/freckle/freckle-http/compare/v0.4.0.0...v0.4.1.0)
 
-- Add `Freckle.App.Http.Cache.InProcess`, a size-bounded in-process alternative
-  to `Freckle.App.Http.Cache.Memcached` for environments without a Memcached
-  cluster
+- Add `Freckle.App.Http.Cache.InProcess`, a in-memory size-bounded LRU cache
 
 ## [v0.4.0.0](https://github.com/freckle/freckle-http/compare/v0.3.1.0...v0.4.0.0)
 
